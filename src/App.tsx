@@ -1,25 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { Play, Pause, Download, Upload, Plus, Trash2, Video } from 'lucide-react';
-
-interface Note {
-  time: number;
-}
-
-interface Section {
-  start: number;
-  playbackRate: number;
-}
-
-interface Chart {
-  bpm: number;
-  sections: Section[];
-  notes: Note[];
-}
+import { EffectsOverlay } from './components/EffectsOverlay';
+import { EffectsTimeline } from './components/EffectsTimeline';
+import { EffectsControls } from './components/EffectsControls';
+import { Chart, Effect } from './types';
 
 const DEFAULT_CHART: Chart = {
   bpm: 120,
   sections: [{ start: 0, playbackRate: 1 }],
-  notes: [{ time: 0.5 }, { time: 1.0 }, { time: 2.0 }, { time: 3.5 }]
+  notes: [{ time: 0.5 }, { time: 1.0 }, { time: 2.0 }, { time: 3.5 }],
+  effects: []
 };
 
 function App() {
@@ -207,8 +197,24 @@ function App() {
     setChart({
       bpm: 120,
       sections: [{ start: 0, playbackRate: 1 }],
-      notes: []
+      notes: [],
+      effects: []
     });
+  };
+
+  const handleAddEffect = (effect: Omit<Effect, 'time'> & { time?: number }) => {
+    const time = effect.time ?? (videoRef.current?.currentTime || 0);
+    setChart(prev => ({
+      ...prev,
+      effects: [...prev.effects, { ...effect, time } as Effect].sort((a, b) => a.time - b.time)
+    }));
+  };
+
+  const handleRemoveEffect = (index: number) => {
+    setChart(prev => ({
+      ...prev,
+      effects: prev.effects.filter((_, i) => i !== index)
+    }));
   };
 
   const handleExport = () => {
@@ -343,29 +349,39 @@ function App() {
         {activeTab === 'player' ? (
           <div className="w-full max-w-[920px] bg-neutral-900 rounded-xl p-4 shadow-2xl">
             <div className="flex flex-col gap-4">
-              {videoUrl ? (
-                <video
-                  ref={videoRef}
-                  className="w-full rounded-lg"
-                  controls
-                  preload="auto"
-                  src={videoUrl}
-                />
-              ) : (
-                <div className="w-full aspect-video rounded-lg bg-neutral-800 border-2 border-dashed border-neutral-700 flex flex-col items-center justify-center gap-3">
-                  <Video size={64} className="text-neutral-600" />
-                  <p className="text-neutral-400 font-semibold">No video loaded</p>
-                  <label className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-bold flex items-center gap-2 transition-colors cursor-pointer">
-                    <Upload size={20} /> Upload Video
-                    <input
-                      type="file"
-                      accept="video/*"
-                      onChange={handleVideoUpload}
-                      className="hidden"
+              <div className="relative">
+                {videoUrl ? (
+                  <>
+                    <video
+                      ref={videoRef}
+                      className="w-full rounded-lg"
+                      controls
+                      preload="auto"
+                      src={videoUrl}
                     />
-                  </label>
-                </div>
-              )}
+                    <EffectsOverlay videoRef={videoRef} effects={chart.effects} />
+                  </>
+                ) : (
+                  <div className="w-full aspect-video rounded-lg bg-neutral-800 border-2 border-dashed border-neutral-700 flex flex-col items-center justify-center gap-3">
+                    <Video size={64} className="text-neutral-600" />
+                    <p className="text-neutral-400 font-semibold">No video loaded</p>
+                    <label className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-bold flex items-center gap-2 transition-colors cursor-pointer">
+                      <Upload size={20} /> Upload Video
+                      <input
+                        type="file"
+                        accept="video/*"
+                        onChange={handleVideoUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              <EffectsControls
+                currentTime={videoRef.current?.currentTime || 0}
+                onAddEffect={handleAddEffect}
+              />
 
               <canvas
                 ref={canvasRef}
@@ -431,29 +447,39 @@ function App() {
         ) : (
           <div className="w-full max-w-[920px] bg-neutral-900 rounded-xl p-4 shadow-2xl">
             <div className="flex flex-col gap-4">
-              {videoUrl ? (
-                <video
-                  ref={videoRef}
-                  className="w-full rounded-lg"
-                  controls
-                  preload="auto"
-                  src={videoUrl}
-                />
-              ) : (
-                <div className="w-full aspect-video rounded-lg bg-neutral-800 border-2 border-dashed border-neutral-700 flex flex-col items-center justify-center gap-3">
-                  <Video size={64} className="text-neutral-600" />
-                  <p className="text-neutral-400 font-semibold">No video loaded</p>
-                  <label className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-bold flex items-center gap-2 transition-colors cursor-pointer">
-                    <Upload size={20} /> Upload Video
-                    <input
-                      type="file"
-                      accept="video/*"
-                      onChange={handleVideoUpload}
-                      className="hidden"
+              <div className="relative">
+                {videoUrl ? (
+                  <>
+                    <video
+                      ref={videoRef}
+                      className="w-full rounded-lg"
+                      controls
+                      preload="auto"
+                      src={videoUrl}
                     />
-                  </label>
-                </div>
-              )}
+                    <EffectsOverlay videoRef={videoRef} effects={chart.effects} />
+                  </>
+                ) : (
+                  <div className="w-full aspect-video rounded-lg bg-neutral-800 border-2 border-dashed border-neutral-700 flex flex-col items-center justify-center gap-3">
+                    <Video size={64} className="text-neutral-600" />
+                    <p className="text-neutral-400 font-semibold">No video loaded</p>
+                    <label className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-bold flex items-center gap-2 transition-colors cursor-pointer">
+                      <Upload size={20} /> Upload Video
+                      <input
+                        type="file"
+                        accept="video/*"
+                        onChange={handleVideoUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              <EffectsControls
+                currentTime={videoRef.current?.currentTime || 0}
+                onAddEffect={handleAddEffect}
+              />
 
               <div className="flex flex-wrap gap-3 items-center text-sm">
                 <div className="flex items-center gap-2">
@@ -568,6 +594,13 @@ function App() {
                       title={`${note.time.toFixed(3)}s`}
                     />
                   ))}
+
+                  <EffectsTimeline
+                    effects={chart.effects}
+                    duration={duration}
+                    pixelsPerSecond={pixelsPerSecond}
+                    onRemoveEffect={handleRemoveEffect}
+                  />
 
                   <div
                     ref={playheadRef}
