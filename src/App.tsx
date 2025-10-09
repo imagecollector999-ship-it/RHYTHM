@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Play, Pause, Download, Upload, Plus, Trash2, Video } from 'lucide-react';
 import { EffectsOverlay } from './components/EffectsOverlay';
-import { EffectsTimeline } from './components/EffectsTimeline';
 import { EffectsControls } from './components/EffectsControls';
-import { Chart, Effect } from './types';
+import { Chart, Effect, Note } from './types';
 
 const DEFAULT_CHART: Chart = {
   bpm: 120,
@@ -27,6 +26,7 @@ function App() {
   const playheadRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number>();
   const dragRef = useRef<{ noteObj: Note; startX: number } | null>(null);
+  const effectDragRef = useRef<{ effectObj: Effect; startX: number } | null>(null);
 
   const pixelsPerSecond = 120;
 
@@ -217,6 +217,41 @@ function App() {
     }));
   };
 
+  const handleRemoveNote = (index: number) => {
+    setChart(prev => ({
+      ...prev,
+      notes: prev.notes.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleEffectPointerDown = (e: React.PointerEvent<HTMLDivElement>, effect: Effect) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+    effectDragRef.current = { effectObj: effect, startX: e.clientX };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handleEffectPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!effectDragRef.current || !timelineRef.current) return;
+    const rect = (timelineRef.current.children[0] as HTMLElement).getBoundingClientRect();
+    const x = e.clientX - rect.left + timelineRef.current.scrollLeft;
+    const newTime = Math.max(0, Math.min(x / pixelsPerSecond, getDuration()));
+    effectDragRef.current.effectObj.time = newTime;
+    setChart(prev => ({ ...prev }));
+  };
+
+  const handleEffectPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!effectDragRef.current) return;
+    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    effectDragRef.current = null;
+    setIsDragging(false);
+    setChart(prev => ({
+      ...prev,
+      effects: [...prev.effects].sort((a, b) => a.time - b.time)
+    }));
+  };
+
   const handleExport = () => {
     const blob = new Blob([JSON.stringify(chart, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
@@ -377,11 +412,6 @@ function App() {
                   </div>
                 )}
               </div>
-
-              <EffectsControls
-                currentTime={videoRef.current?.currentTime || 0}
-                onAddEffect={handleAddEffect}
-              />
 
               <canvas
                 ref={canvasRef}
@@ -583,24 +613,62 @@ function App() {
                   {chart.notes.map((note, idx) => (
                     <div
                       key={idx}
-                      onPointerDown={(e) => handleNotePointerDown(e, note)}
-                      onPointerMove={handleNotePointerMove}
-                      onPointerUp={handleNotePointerUp}
-                      className="note absolute bottom-0 w-2 h-full bg-pink-500 rounded-sm cursor-grab active:cursor-grabbing hover:bg-pink-400 transition-colors"
+                      className="note-container absolute bottom-0 h-full group"
                       style={{
                         left: `${note.time * pixelsPerSecond}px`,
                         transform: 'translateX(-50%)'
                       }}
-                      title={`${note.time.toFixed(3)}s`}
-                    />
+                    >
+                      <div
+                        onPointerDown={(e) => handleNotePointerDown(e, note)}
+                        onPointerMove={handleNotePointerMove}
+                        onPointerUp={handleNotePointerUp}
+                        className="note w-2 h-full bg-pink-500 rounded-sm cursor-grab active:cursor-grabbing hover:bg-pink-400 transition-colors"
+                        title={`${note.time.toFixed(3)}s`}
+                      />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveNote(idx);
+                        }}
+                        className="absolute -top-6 left-1/2 -translate-x-1/2 w-5 h-5 bg-red-500 hover:bg-red-600 rounded-full text-white text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                      >
+                        ×
+                      </button>
+                    </div>
                   ))}
 
-                  <EffectsTimeline
-                    effects={chart.effects}
-                    duration={duration}
-                    pixelsPerSecond={pixelsPerSecond}
-                    onRemoveEffect={handleRemoveEffect}
-                  />
+                  {chart.effects.map((effect, idx) => (
+                    <div
+                      key={idx}
+                      className="effect-container absolute top-6 group"
+                      style={{
+                        left: `${effect.time * pixelsPerSecond}px`,
+                        transform: 'translateX(-50%)'
+                      }}
+                    >
+                      <div
+                        onPointerDown={(e) => handleEffectPointerDown(e, effect)}
+                        onPointerMove={handleEffectPointerMove}
+                        onPointerUp={handleEffectPointerUp}
+                        className={`w-3 h-3 rounded-full cursor-grab active:cursor-grabbing transition-all shadow-lg ${
+                          effect.type === 'heart' ? 'bg-red-500 hover:bg-red-400' :
+                          effect.type === 'flash' ? 'bg-yellow-500 hover:bg-yellow-400' :
+                          'bg-cyan-500 hover:bg-cyan-400'
+                        }`}
+                        title={`${effect.time.toFixed(2)}s - ${effect.type}${effect.text ? `: ${effect.text}` : ''}`}
+                      />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveEffect(idx);
+                        }}
+                        className="absolute -top-6 left-1/2 -translate-x-1/2 w-5 h-5 bg-red-500 hover:bg-red-600 rounded-full text-white text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
 
                   <div
                     ref={playheadRef}
