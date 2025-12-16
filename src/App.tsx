@@ -16,7 +16,6 @@ function App() {
   const [chart, setChart] = useState<Chart>(DEFAULT_CHART);
   const [previewMultiplier, setPreviewMultiplier] = useState(1);
   const [forcedPlayback, setForcedPlayback] = useState('');
-  const [baseSpeed, setBaseSpeed] = useState(200);
   const [isDragging, setIsDragging] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string>('');
 
@@ -36,15 +35,7 @@ function App() {
     return Math.max(lastNote + 2, lastSection + 2, 4);
   };
 
-  const getPlaybackAtTime = (t: number) => {
-    let p = chart.sections[0]?.playbackRate ?? 1;
-    const secs = [...chart.sections].sort((a, b) => a.start - b.start);
-    for (const s of secs) {
-      if (t >= s.start) p = s.playbackRate;
-      else break;
-    }
-    return p;
-  };
+  const getPlaybackAtTime = () => 1;
 
   const smoothSetPlaybackRate = (target: number) => {
     if (videoRef.current) {
@@ -98,10 +89,9 @@ function App() {
     ctx.strokeStyle = '#fff';
     ctx.stroke();
 
-    const base = baseSpeed;
+    const base = 200;
     chart.notes.forEach(n => {
-      const pr = getPlaybackAtTime(n.time);
-      const speedPx = base * pr * previewMultiplier;
+      const speedPx = base * previewMultiplier;
       const dx = (n.time - t) * speedPx;
       const x = cx + dx;
       if (x < -40 || x > canvas.width + 40) return;
@@ -182,16 +172,6 @@ function App() {
     }));
   };
 
-  const handleAddSection = () => {
-    const start = parseFloat(prompt('Section start (s):', '0') || '0');
-    const rate = parseFloat(prompt('Playback rate:', '1') || '1');
-    if (!isNaN(start) && !isNaN(rate)) {
-      setChart(prev => ({
-        ...prev,
-        sections: [...prev.sections, { start, playbackRate: rate }].sort((a, b) => a.start - b.start)
-      }));
-    }
-  };
 
   const handleClear = () => {
     setChart({
@@ -512,46 +492,12 @@ function App() {
               />
 
               <div className="flex flex-wrap gap-3 items-center text-sm">
-                <div className="flex items-center gap-2">
-                  <label className="text-neutral-400">BPM</label>
-                  <input
-                    type="range"
-                    min="30"
-                    max="300"
-                    step="1"
-                    value={chart.bpm}
-                    onChange={(e) => setChart(prev => ({ ...prev, bpm: Number(e.target.value) }))}
-                    className="w-24"
-                  />
-                  <span className="text-neutral-300 w-10">{chart.bpm}</span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <label className="text-neutral-400">Base speed</label>
-                  <input
-                    type="range"
-                    min="80"
-                    max="800"
-                    step="10"
-                    value={baseSpeed}
-                    onChange={(e) => setBaseSpeed(Number(e.target.value))}
-                    className="w-24"
-                  />
-                  <span className="text-neutral-300 w-10">{baseSpeed}</span>
-                </div>
-
                 <div className="ml-auto flex gap-2">
                   <button
                     onClick={handleAddNote}
                     className="px-3 py-2 bg-pink-500 hover:bg-pink-600 rounded-lg font-bold flex items-center gap-2 transition-colors"
                   >
                     <Plus size={16} /> Note
-                  </button>
-                  <button
-                    onClick={handleAddSection}
-                    className="px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg font-bold flex items-center gap-2 transition-colors border border-neutral-700"
-                  >
-                    <Plus size={16} /> Section
                   </button>
                   <button
                     onClick={handleClear}
@@ -583,33 +529,6 @@ function App() {
                 className="bg-black rounded-lg h-28 overflow-auto relative border border-neutral-800 cursor-crosshair"
               >
                 <div className="relative h-24" style={{ width: `${timelineWidth}px` }}>
-                  {chart.sections.sort((a, b) => a.start - b.start).map((section, idx) => {
-                    const nextSection = chart.sections.sort((a, b) => a.start - b.start)[idx + 1];
-                    const startPx = section.start * pixelsPerSecond;
-                    const endPx = (nextSection?.start ?? duration) * pixelsPerSecond;
-                    return (
-                      <div
-                        key={idx}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const newRate = parseFloat(prompt('Playback rate:', String(section.playbackRate)) || String(section.playbackRate));
-                          if (!isNaN(newRate)) {
-                            section.playbackRate = newRate;
-                            setChart(prev => ({ ...prev }));
-                          }
-                        }}
-                        className="absolute top-0 h-6 bg-gradient-to-r from-neutral-800/40 to-transparent text-neutral-400 text-xs leading-6 pl-2 border-l border-neutral-700 cursor-pointer hover:bg-neutral-800/60 transition-colors"
-                        style={{
-                          left: `${startPx}px`,
-                          width: `${Math.max(24, endPx - startPx)}px`
-                        }}
-                        title={`${section.start.toFixed(2)}s • ${section.playbackRate}x`}
-                      >
-                        {section.playbackRate}x
-                      </div>
-                    );
-                  })}
-
                   {chart.notes.map((note, idx) => (
                     <div
                       key={idx}
